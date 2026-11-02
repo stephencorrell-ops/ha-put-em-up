@@ -1,0 +1,13 @@
+{
+  "domain": "put_em_up",
+  "name": "Put 'Em Up",
+  "codeowners": ["@stephencorrell-ops"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "websocket_api"],
+  "after_dependencies": ["garden_tracker"],
+  "documentation": "https://github.com/stephencorrell-ops/ha-put-em-up",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/stephencorrell-ops/ha-put-em-up/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
