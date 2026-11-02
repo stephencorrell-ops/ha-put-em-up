@@ -1,4 +1,5 @@
 /* Put 'Em Up card: pantry, make a batch, recipes, garden use. */
+(() => {
 const DOMAIN = "put_em_up";
 const CSS = `
 :host{display:block}
@@ -206,3 +207,4 @@ class PutEmUpCard extends HTMLElement {
 if (!customElements.get("put-em-up-card")) customElements.define("put-em-up-card", PutEmUpCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === "put-em-up-card")) window.customCards.push({ type: "put-em-up-card", name: "Put 'Em Up", description: "Food preservation batches, recipes, pantry stock and garden use", preview: false });
+})();

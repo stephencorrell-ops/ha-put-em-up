@@ -68,6 +68,9 @@ with sync_playwright() as p:
     page.on("dialog", lambda d: d.accept())
     page.expose_function("pyCall", call)
     page.set_content(PAGE)
+    # Home Assistant loads every card as a plain script in one shared namespace, so load a card that
+    # declares the same top-level names first: ours must still start.
+    page.add_script_tag(content="const DOMAIN='garden_tracker';const esc=(s)=>s;const num=(n)=>n;const CSS='x';")
     page.add_script_tag(path=str(ROOT / "custom_components/put_em_up/www/put-em-up-card.js"))
     page.evaluate(SHIM)
     page.evaluate("s=>window.push(s)", model.snapshot())
