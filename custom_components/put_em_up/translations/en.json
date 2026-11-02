@@ -1,0 +1,6 @@
+{
+  "config": {
+    "step": {"user": {"title": "Put 'Em Up", "description": "Log canning and freeze-drying batches, keep track of your pantry, and count what you use against your Garden Tracker harvest totals."}},
+    "abort": {"already_configured": "Put 'Em Up is already set up."}
+  }
+}

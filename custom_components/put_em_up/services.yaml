@@ -1,0 +1,32 @@
+save_recipe:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    ingredients: {required: true, selector: {object: {}}}
+    makes: {required: true, selector: {object: {}}}
+    recipe_id: {selector: {text: {}}}
+delete_recipe:
+  fields:
+    recipe_id: {required: true, selector: {text: {}}}
+log_batch:
+  fields:
+    products: {required: true, selector: {object: {}}}
+    ingredients: {selector: {object: {}}}
+    recipe_id: {selector: {text: {}}}
+    multiplier: {selector: {number: {min: 0.25, max: 1000, step: 0.25}}}
+    year: {selector: {number: {min: 2000, max: 2100}}}
+    date: {selector: {date: {}}}
+    notes: {selector: {text: {}}}
+delete_batch:
+  fields:
+    batch_id: {required: true, selector: {text: {}}}
+use_item:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    unit: {required: true, selector: {text: {}}}
+    year: {required: true, selector: {number: {min: 2000, max: 2100}}}
+    qty: {selector: {number: {min: 1, max: 1000}}}
+    kind: {selector: {select: {options: [eaten, gave away, spoiled, found]}}}
+    date: {selector: {date: {}}}
+delete_use:
+  fields:
+    use_id: {required: true, selector: {text: {}}}
