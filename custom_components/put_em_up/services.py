@@ -19,10 +19,10 @@ SERVICES: dict[str, tuple[dict, str]] = {
     "save_recipe": ({R("name"): cv.string, R("ingredients"): [ING], R("makes"): [PROD], O("recipe_id"): cv.string}, "save_recipe"),
     "delete_recipe": ({R("recipe_id"): cv.string}, "delete_recipe"),
     "log_batch": ({R("products"): [PROD], O("ingredients"): [ING], O("recipe_id"): cv.string, O("multiplier"): NUM,
-                   O("year"): cv.positive_int, O("on"): cv.date, O("notes"): cv.string}, "log_batch"),
+                   O("year"): cv.positive_int, O("date"): cv.date, O("notes"): cv.string}, "log_batch"),
     "delete_batch": ({R("batch_id"): cv.string}, "delete_batch"),
     "use_item": ({R("name"): cv.string, R("unit"): vol.In(UNITS), R("year"): cv.positive_int, O("qty"): NUM,
-                  O("kind"): vol.In(USE_KINDS), O("on"): cv.date}, "use_item"),
+                  O("kind"): vol.In(USE_KINDS), O("date"): cv.date}, "use_item"),
     "delete_use": ({R("use_id"): cv.string}, "delete_use"),
 }
 
@@ -34,8 +34,8 @@ def async_register_services(hass: HomeAssistant) -> None:
             if mgr is None:
                 raise ServiceValidationError("Put 'Em Up is not set up")
             args = dict(call.data)
-            if "on" in args:
-                args["on"] = args["on"].isoformat()
+            if "date" in args:
+                args["on"] = args.pop("date").isoformat()
             try:
                 getattr(mgr, method)(**args)
             except PantryError as err:
