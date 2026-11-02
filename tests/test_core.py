@@ -2,6 +2,9 @@ import sys, unittest
 from datetime import date
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "put_em_up"))
+import importlib.util as _u  # the standard library has a module called resource; load ours by path
+_s = _u.spec_from_file_location("resource", str(Path(__file__).resolve().parents[1] / "custom_components" / "put_em_up" / "resource.py"))
+_m = _u.module_from_spec(_s); _s.loader.exec_module(_m); sys.modules["resource"] = _m
 from core.model import PantryModel, PantryError, to_oz, fmt_oz  # noqa: E402
 
 GARDEN = {"tomato": {"name": "Tomato", "years": {"2026": 412.5}},
@@ -97,3 +100,42 @@ class Pantry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResourceRegistration(unittest.TestCase):
+    def run_it(self, items, lovelace=None):
+        import asyncio
+        from resource import ensure_resource  # noqa
+        class R:
+            loaded = True
+            def __init__(s): s.items = list(items)
+            def async_items(s): return s.items
+            async def async_create_item(s, d): s.items.append({"id": "n", **d})
+            async def async_update_item(s, i, d):
+                [x.update(d) for x in s.items if x["id"] == i]
+        class L: resources = R()
+        l = lovelace or L()
+        out = asyncio.run(ensure_resource(l, "/put_em_up/c.js", "/put_em_up/c.js?v=2"))
+        return out, l
+
+    def test_adds_when_missing(self):
+        out, l = self.run_it([])
+        self.assertEqual(out, "added")
+        self.assertEqual(l.resources.items[0]["res_type"], "module")
+
+    def test_updates_a_hand_added_one_instead_of_duplicating(self):
+        out, l = self.run_it([{"id": "1", "url": "/put_em_up/c.js", "res_type": "module"}])
+        self.assertEqual(out, "updated")
+        self.assertEqual(len(l.resources.items), 1)
+        self.assertEqual(l.resources.items[0]["url"], "/put_em_up/c.js?v=2")
+
+    def test_leaves_current_one_alone(self):
+        out, _ = self.run_it([{"id": "1", "url": "/put_em_up/c.js?v=2", "res_type": "module"}])
+        self.assertEqual(out, "unchanged")
+
+    def test_yaml_mode_and_missing_lovelace(self):
+        class L: resources = object()
+        self.assertEqual(self.run_it([], L())[0], "yaml_mode")
+        import asyncio
+        from resource import ensure_resource  # noqa
+        self.assertEqual(asyncio.run(ensure_resource(None, "a", "b")), "no_lovelace")

@@ -1,6 +1,8 @@
 """Put 'Em Up: log canning and freeze-drying batches, track the pantry, and count what you use against your garden harvest."""
 from __future__ import annotations
 
+import hashlib
+import logging
 from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
@@ -9,14 +11,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from . import websocket
 from .const import CARD_URL, DOMAIN, GARDEN_DOMAIN, SIGNAL_UPDATE, VERSION
 from .manager import PantryManager
+from .resource import ensure_resource
 from .services import async_register_services
 
+_LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -26,7 +31,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket.async_register(hass)
     card = Path(__file__).parent / "www" / "put-em-up-card.js"
     await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), False)])
-    add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}")
+    # The address changes whenever the file does, so browsers and the app fetch the new copy.
+    card_url = f"{CARD_URL}?v={hashlib.sha256(card.read_bytes()).hexdigest()[:10]}"
+    add_extra_js_url(hass, card_url)
+
+    async def _add_resource(_hass=None) -> None:
+        try:
+            result = await ensure_resource(hass.data.get("lovelace"), CARD_URL, card_url)
+            _LOGGER.debug("Put 'Em Up dashboard resource: %s", result)
+        except Exception:  # noqa: BLE001 - the card is optional; never block setup
+            _LOGGER.exception("Could not add the Put 'Em Up card to the dashboard resources")
+
+    async_at_started(hass, _add_resource)
     return True
 
 
