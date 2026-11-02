@@ -17,5 +17,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/stephencorrell-ops/ha-put-em-up/issues",
   "requirements": [],
-  "version": "0.1.2"
+  "version": "0.1.3"
 }

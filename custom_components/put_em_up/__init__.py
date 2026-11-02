@@ -37,7 +37,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _add_resource(_hass=None) -> None:
         try:
-            result = await ensure_resource(hass.data.get("lovelace"), CARD_URL, card_url)
+            # Plain address, no ?v=: the app and some browsers fail to start the card when this address changes.
+            result = await ensure_resource(hass.data.get("lovelace"), CARD_URL, CARD_URL)
             _LOGGER.debug("Put 'Em Up dashboard resource: %s", result)
         except Exception:  # noqa: BLE001 - the card is optional; never block setup
             _LOGGER.exception("Could not add the Put 'Em Up card to the dashboard resources")
