@@ -207,3 +207,11 @@ class ResourceRegistration(unittest.TestCase):
         import asyncio
         from resource import ensure_resource  # noqa
         self.assertEqual(asyncio.run(ensure_resource(None, "a", "b")), "no_lovelace")
+
+
+class LoadedStoreData(unittest.TestCase):
+    def test_model_data_replaced_after_init_still_gets_defaults(self):
+        """The manager swaps in stored data after construction; old stores lack 'options'."""
+        src = open("custom_components/put_em_up/manager.py").read()
+        self.assertIn('setdefault("options"', src.split("async def async_load")[1].split("def garden_totals")[0])
+        self.assertIn("_migrate()", src.split("async def async_load")[1].split("def garden_totals")[0])

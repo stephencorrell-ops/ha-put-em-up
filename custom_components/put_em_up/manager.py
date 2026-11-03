@@ -26,6 +26,8 @@ class PantryManager(PantryModel):
         self.data = data
         for k in ("recipes", "batches", "uses"):
             self.data.setdefault(k, {})
+        self.data.setdefault("options", {"methods": [], "units": []})
+        self._migrate()
 
     def garden_totals(self) -> dict:
         """Yearly pounds per plant type, read from Garden Tracker's 'harvest totals' sensors."""
