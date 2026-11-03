@@ -28,7 +28,9 @@ def call(service, data):
     data = json.loads(data)
     try:
         if service == "log_batch":
-            model.log_batch(**{k: v for k, v in data.items()})
+            if "date" in data:
+                data["on"] = data.pop("date")
+            model.log_batch(**data)
         elif service == "use_item":
             model.use_item(**data)
         elif service == "delete_batch":
@@ -101,6 +103,19 @@ with sync_playwright() as p:
     ok("Tomato 2026" in t and "400 lb in" in t and "0.35 per lb" in t, "batch history shows pounds in and yield per pound")
     if SHOTS:
         page.screenshot(path=str(SHOTS / "history.png"), full_page=True)
+    # a second canner load the next weekend goes into the same totals
+    tab("make")
+    fill("crop", "tomato"); fill("date", "2026-09-12"); fill("lb", 200)
+    fill("prods.0.name", "Salsa"); fill("prods.0.qty", 70)
+    sh("", "r.querySelector('[data-save-batch]').click()")
+    page.wait_for_timeout(200)
+    salsa = [i for i in model.snapshot()["pantry"] if i["name"] == "Salsa"][0]
+    ok(salsa["count"] == 210, f"second load adds to the pantry count (got {salsa['count']})")
+    tab("totals")
+    t = txt()
+    ok("Tomato" in t and "2026" in t and "2 loads" in t and "600 lb in" in t and "210" in t, "yearly totals add both loads")
+    if SHOTS:
+        page.screenshot(path=str(SHOTS / "totals.png"), full_page=True)
     # a crop that is not in the garden
     tab("make")
     fill("other", "Peaches"); fill("lb", 30); fill("prods.0.name", "Peach halves"); fill("prods.0.unit", "quarts"); fill("prods.0.qty", 12)

@@ -49,8 +49,8 @@ class PutEmUpCard extends HTMLElement {
 
   _render() {
     if (!this._s || !this.shadowRoot) return;
-    const s = this._s, tabs = [["pantry", "Pantry"], ["make", "Log a batch"], ["history", "Batches"]];
-    const body = { pantry: () => this._pantry(s), make: () => this._make(s), history: () => this._history(s) }[this._tab]();
+    const s = this._s, tabs = [["pantry", "Pantry"], ["make", "Log a load"], ["totals", "Yearly totals"], ["history", "Loads"]];
+    const body = { pantry: () => this._pantry(s), make: () => this._make(s), totals: () => this._totals(s), history: () => this._history(s) }[this._tab]();
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>
       <div class="tabs">${tabs.map(([k, l]) => `<button class="tab ${k === this._tab ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
       ${this._err ? `<div class="err">${esc(this._err)}</div>` : ""}${body}</ha-card>`;
@@ -74,7 +74,7 @@ class PutEmUpCard extends HTMLElement {
   }
 
   // ---- log a batch ----
-  _newMake(s) { return { crop: "", other: "", year: s.year, lb: "", oz: "", prods: [{ name: "", unit: "pints", qty: "" }] }; }
+  _newMake(s) { return { crop: "", other: "", date: s.today, lb: "", oz: "", prods: [{ name: "", unit: "pints", qty: "" }] }; }
   _prodRows(list, key, s, label) {
     return list.map((p, n) => `<div class="line">
       <input class="n" type="number" min="0" step="any" value="${p.qty ?? ""}" data-f="${key}.${n}.qty">
@@ -84,17 +84,25 @@ class PutEmUpCard extends HTMLElement {
   }
   _make(s) {
     const f = (this._m = this._m || this._newMake(s));
-    const gc = s.garden_crops.find((c) => c.key === f.crop), cr = gc && s.crops.find((x) => x.key === f.crop), row = cr && cr.years[String(f.year)];
+    const gc = s.garden_crops.find((c) => c.key === f.crop), cr = gc && s.crops.find((x) => x.key === f.crop), yr = String(f.date || s.today).slice(0, 4), row = cr && cr.years[yr];
     return `<div class="form">
       <div class="line"><span class="sub">Crop</span><select data-f="crop" class="grow"><option value="">Other…</option>${s.garden_crops.map((c) => `<option value="${c.key}" ${c.key === f.crop ? "selected" : ""}>🌱 ${esc(c.name)}</option>`).join("")}</select>
-        <span class="sub">Year</span><input class="n" type="number" value="${f.year}" data-f="year"></div>
+        <span class="sub">Date</span><input type="date" value="${f.date}" data-f="date"></div>
       ${f.crop ? "" : `<input class="t" placeholder="Crop name, e.g. Tomatoes" value="${esc(f.other)}" data-f="other">`}
       <div class="line"><span class="sub">Pounds in</span><input class="n" type="number" min="0" step="any" placeholder="lb" value="${f.lb ?? ""}" data-f="lb">lb
         <input class="n" type="number" min="0" step="any" placeholder="oz" value="${f.oz ?? ""}" data-f="oz">oz</div>
-      ${row ? `<div class="sub">Garden Tracker logged ${fmt(row.harvested_oz)} of ${esc(gc.name)} in ${f.year}.</div>` : ""}
+      ${row ? `<div class="sub">Garden Tracker logged ${fmt(row.harvested_oz)} of ${esc(gc.name)} in ${yr}.</div>` : ""}
       <div class="sub">What you made</div>${this._prodRows(f.prods, "prods", s, "Product, e.g. Salsa")}
       <div><button class="btn sm ghost" data-add="prods">+ product</button></div>
-      <div><button class="btn" data-save-batch>Save batch</button></div></div>`;
+      <div><button class="btn" data-save-batch>Save load</button></div></div>`;
+  }
+
+  // ---- yearly totals ----
+  _totals(s) {
+    if (!s.totals.length) return `<div class="sub">No loads logged yet. Each load you log adds to the year's totals.</div>`;
+    return s.totals.map((c) => `<div style="margin:6px 0 14px"><h3>${esc(c.name)}</h3>${c.years.map((y) => `<div class="box">
+      <div class="line" style="justify-content:space-between"><b>${y.year}</b><span class="sub">${y.loads} load${y.loads === 1 ? "" : "s"} · ${fmt(y.oz)} in</span></div>
+      ${y.products.map((p) => `<div class="row"><span>${esc(p.name)}</span><span><b>${p.qty}</b> ${esc(p.unit)}${p.per_lb ? ` <span class="sub">· ${p.per_lb} per lb</span>` : ""}</span></div>`).join("")}</div>`).join("")}</div>`).join("");
   }
 
   // ---- batch history ----
@@ -102,7 +110,7 @@ class PutEmUpCard extends HTMLElement {
     return s.batches.length ? s.batches.map((b) => `<div class="row"><div><h3>${esc((b.ingredients[0] && b.ingredients[0].name) || "Batch")} ${b.year}</h3>
       <div class="sub">${b.date}${b.total_oz ? ` · ${fmt(b.total_oz)} in` : ""}</div>
       <div class="sub">${b.products.map((p) => `${p.qty} ${p.unit} ${esc(p.name)}${p.per_lb ? ` (${p.per_lb} per lb)` : ""}`).join(", ")}</div></div>
-      <button class="btn sm ghost" data-bdel="${b.id}">Delete</button></div>`).join("") : `<div class="sub">No batches yet.</div>`;
+      <button class="btn sm ghost" data-bdel="${b.id}">Delete</button></div>`).join("") : `<div class="sub">No loads yet.</div>`;
   }
 
   // ---- wiring ----
@@ -125,7 +133,7 @@ class PutEmUpCard extends HTMLElement {
     if (save) save.onclick = async () => {
       const f = this._m, gc = s.garden_crops.find((c) => c.key === f.crop), name = gc ? gc.name : (f.other || "").trim();
       const prods = f.prods.filter((p) => p.name.trim() && num(p.qty) > 0).map((p) => ({ name: p.name.trim(), unit: p.unit, qty: num(p.qty) }));
-      const data = { products: prods, ingredients: name ? [{ name, crop: f.crop || null, crop_name: gc ? gc.name : null, lb: num(f.lb), oz: num(f.oz) }] : [], year: Number(f.year) || s.year };
+      const data = { products: prods, ingredients: name ? [{ name, crop: f.crop || null, crop_name: gc ? gc.name : null, lb: num(f.lb), oz: num(f.oz) }] : [], date: f.date || s.today };
       if (await this._call("log_batch", data)) { this._m = null; this._tab = "pantry"; this._render(); }
     };
   }

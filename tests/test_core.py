@@ -78,6 +78,29 @@ class Batches(unittest.TestCase):
             m.log_batch([{"name": "S", "unit": "pints", "qty": 1}], recipe_id=None)
 
 
+class YearTotals(unittest.TestCase):
+    def test_loads_add_up_by_crop_and_year(self):
+        m = make()
+        T = {"name": "Tomatoes", "crop": "tomato", "crop_name": "Tomato"}
+        m.log_batch([{"name": "Salsa", "unit": "pints", "qty": 70}], ingredients=[{**T, "lb": 200}], on="2026-09-05")
+        m.log_batch([{"name": "salsa", "unit": "pints", "qty": 70}, {"name": "Diced", "unit": "pints", "qty": 40}],
+                    ingredients=[{**T, "lb": 200}], on="2026-09-12")
+        m.log_batch([{"name": "Salsa", "unit": "pints", "qty": 90}], ingredients=[{**T, "lb": 300}], on="2025-09-10")
+        tot = {t["key"]: t for t in m.snapshot()["totals"]}["tomato"]
+        y26, y25 = tot["years"]
+        self.assertEqual((y26["year"], y26["loads"], y26["oz"]), (2026, 2, 400 * 16))
+        salsa = [p for p in y26["products"] if p["name"].lower() == "salsa"][0]
+        self.assertEqual((salsa["qty"], salsa["per_lb"]), (140, 0.35))
+        self.assertEqual((y25["year"], y25["products"][0]["per_lb"]), (2025, 0.3))
+        # the pantry adds the two 2026 loads together as well
+        self.assertEqual({i["name"].lower(): i["count"] for i in m.snapshot()["pantry"] if i["year"] == 2026}["salsa"], 140)
+
+    def test_date_sets_the_year(self):
+        m = make()
+        m.log_batch([{"name": "Jam", "unit": "pints", "qty": 5}], ingredients=[{"name": "Berries", "lb": 10}], on="2025-07-04")
+        self.assertEqual(m.snapshot()["batches"][0]["year"], 2025)
+
+
 class Pantry(unittest.TestCase):
     def test_use_and_found(self):
         m = make()

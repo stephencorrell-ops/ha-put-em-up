@@ -205,6 +205,32 @@ class PantryModel:
             crops[key] = {"key": key, "name": names[key], "years": rows}
         return crops
 
+    def totals(self) -> list[dict]:
+        """Per crop, per year: loads, pounds in, and everything made, added up across all loads."""
+        crops: dict[str, dict] = {}
+        for b in self.data["batches"].values():
+            ing = b["ingredients"][0] if b["ingredients"] else None
+            name = (ing["name"] if ing else None) or "Unnamed"
+            key = (ing.get("crop") if ing else None) or slug(name)
+            c = crops.setdefault(key, {"key": key, "name": name, "years": {}})
+            y = c["years"].setdefault(str(b["year"]), {"year": b["year"], "loads": 0, "oz": 0.0, "made": {}})
+            y["loads"] += 1
+            y["oz"] += sum(i["oz"] for i in b["ingredients"])
+            for p in b["products"]:
+                k = (p["name"].strip().lower(), p["unit"])
+                m = y["made"].setdefault(k, {"name": p["name"], "unit": p["unit"], "qty": 0.0})
+                m["qty"] = round(m["qty"] + p["qty"], 2)
+        out = []
+        for c in sorted(crops.values(), key=lambda c: c["name"].lower()):
+            years = []
+            for y in sorted(c["years"].values(), key=lambda y: -y["year"]):
+                lb = y["oz"] / OZ_PER_LB
+                prods = [{**m, "per_lb": round(m["qty"] / lb, 3) if lb else None}
+                         for m in sorted(y["made"].values(), key=lambda m: (m["name"].lower(), m["unit"]))]
+                years.append({"year": y["year"], "loads": y["loads"], "oz": round(y["oz"], 2), "products": prods})
+            out.append({"key": c["key"], "name": c["name"], "years": years})
+        return out
+
     def snapshot(self) -> dict:
         today = self.today()
         year = str(today.year)
@@ -224,6 +250,7 @@ class PantryModel:
             "pantry": stock,
             "recipes": sorted(self.data["recipes"].values(), key=lambda r: r["name"].lower()),
             "batches": batches,
+            "totals": self.totals(),
             "uses": sorted(self.data["uses"].values(), key=lambda u: u["date"], reverse=True),
             "crops": sorted(crops.values(), key=lambda c: c["name"].lower()),
             "garden_crops": sorted(({"key": k, "name": g.get("name", k)} for k, g in (self.garden() or {}).items()), key=lambda c: c["name"].lower()),

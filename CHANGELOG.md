@@ -4,7 +4,7 @@ After updating in HACS, restart Home Assistant and refresh your dashboard (close
 
 ## 0.2.0
 
-Simplified to a plain log. Recipes, ingredient weights, garden use and shortfall are gone: garden weight and recipe weight can't be matched reliably once you trim, peel and seed. A batch is now a crop, the pounds in, and what you made. The form still shows what Garden Tracker logged for that crop as a reference.
+Simplified to a plain log. Recipes, ingredient weights, garden use and shortfall are gone: garden weight and recipe weight can't be matched reliably once you trim, peel and seed. A load is now a crop, a date, the pounds in, and what you made. Loads logged on different days add together in the pantry and in a new Yearly totals tab (loads, pounds in, what was made, and jars per pound for each crop and year). The form still shows what Garden Tracker logged for that crop as a reference.
 
 ## 0.1.3
 
