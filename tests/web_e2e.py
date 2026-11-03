@@ -113,7 +113,7 @@ with sync_playwright() as p:
     ok(salsa["count"] == 210, f"second load adds to the pantry count (got {salsa['count']})")
     tab("totals")
     t = txt()
-    ok("Tomato" in t and "2026" in t and "2 loads" in t and "600 lb in" in t and "210" in t, "yearly totals add both loads")
+    ok("Tomato" in t and "2026" in t and "2 loads" in t and "600 lb in" in t and "210" in t and "0.2 per lb" in t and "0.133" not in t, "yearly totals add both loads")
     if SHOTS:
         page.screenshot(path=str(SHOTS / "totals.png"), full_page=True)
     # a crop that is not in the garden

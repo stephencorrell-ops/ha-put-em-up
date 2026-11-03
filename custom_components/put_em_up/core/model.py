@@ -215,17 +215,22 @@ class PantryModel:
             c = crops.setdefault(key, {"key": key, "name": name, "years": {}})
             y = c["years"].setdefault(str(b["year"]), {"year": b["year"], "loads": 0, "oz": 0.0, "made": {}})
             y["loads"] += 1
-            y["oz"] += sum(i["oz"] for i in b["ingredients"])
+            load_oz = sum(i["oz"] for i in b["ingredients"])
+            y["oz"] += load_oz
+            seen = set()
             for p in b["products"]:
                 k = (p["name"].strip().lower(), p["unit"])
-                m = y["made"].setdefault(k, {"name": p["name"], "unit": p["unit"], "qty": 0.0})
+                m = y["made"].setdefault(k, {"name": p["name"], "unit": p["unit"], "qty": 0.0, "oz": 0.0})
                 m["qty"] = round(m["qty"] + p["qty"], 2)
+                if k not in seen:  # jars per pound only counts the loads that actually made the product
+                    m["oz"] += load_oz
+                    seen.add(k)
         out = []
         for c in sorted(crops.values(), key=lambda c: c["name"].lower()):
             years = []
             for y in sorted(c["years"].values(), key=lambda y: -y["year"]):
-                lb = y["oz"] / OZ_PER_LB
-                prods = [{**m, "per_lb": round(m["qty"] / lb, 3) if lb else None}
+                prods = [{"name": m["name"], "unit": m["unit"], "qty": m["qty"],
+                          "per_lb": round(m["qty"] / (m["oz"] / OZ_PER_LB), 3) if m["oz"] else None}
                          for m in sorted(y["made"].values(), key=lambda m: (m["name"].lower(), m["unit"]))]
                 years.append({"year": y["year"], "loads": y["loads"], "oz": round(y["oz"], 2), "products": prods})
             out.append({"key": c["key"], "name": c["name"], "years": years})

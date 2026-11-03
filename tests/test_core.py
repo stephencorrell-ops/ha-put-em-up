@@ -92,6 +92,8 @@ class YearTotals(unittest.TestCase):
         salsa = [p for p in y26["products"] if p["name"].lower() == "salsa"][0]
         self.assertEqual((salsa["qty"], salsa["per_lb"]), (140, 0.35))
         self.assertEqual((y25["year"], y25["products"][0]["per_lb"]), (2025, 0.3))
+        diced = [p for p in y26["products"] if p["name"] == "Diced"][0]
+        self.assertEqual(diced["per_lb"], 0.2)  # 40 pints from the one load (200 lb) that made it
         # the pantry adds the two 2026 loads together as well
         self.assertEqual({i["name"].lower(): i["count"] for i in m.snapshot()["pantry"] if i["year"] == 2026}["salsa"], 140)
 
