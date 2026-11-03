@@ -7,21 +7,19 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
-from .core.model import UNITS, USE_KINDS, PantryError
+from .core.model import USE_KINDS, PantryError
 
 R, O = vol.Required, vol.Optional
 NUM = vol.Coerce(float)
 ING = vol.Schema({R("name"): cv.string, O("crop"): vol.Any(None, cv.string), O("crop_name"): vol.Any(None, cv.string),
                   O("lb"): NUM, O("oz"): NUM})
-PROD = vol.Schema({R("name"): cv.string, R("unit"): vol.In(UNITS), R("qty"): NUM})
+PROD = vol.Schema({R("name"): cv.string, O("method"): cv.string, R("unit"): cv.string, R("qty"): NUM})
 
 SERVICES: dict[str, tuple[dict, str]] = {
-    "save_recipe": ({R("name"): cv.string, R("ingredients"): [ING], R("makes"): [PROD], O("recipe_id"): cv.string}, "save_recipe"),
-    "delete_recipe": ({R("recipe_id"): cv.string}, "delete_recipe"),
     "log_batch": ({R("products"): [PROD], O("ingredients"): [ING], O("recipe_id"): cv.string, O("multiplier"): NUM,
                    O("year"): cv.positive_int, O("date"): cv.date, O("notes"): cv.string}, "log_batch"),
     "delete_batch": ({R("batch_id"): cv.string}, "delete_batch"),
-    "use_item": ({R("name"): cv.string, R("unit"): vol.In(UNITS), R("year"): cv.positive_int, O("qty"): NUM,
+    "use_item": ({R("name"): cv.string, R("unit"): cv.string, R("year"): cv.positive_int, O("qty"): NUM, O("method"): cv.string,
                   O("kind"): vol.In(USE_KINDS), O("date"): cv.date}, "use_item"),
     "delete_use": ({R("use_id"): cv.string}, "delete_use"),
 }

@@ -73,9 +73,77 @@ class Batches(unittest.TestCase):
         with self.assertRaises(PantryError):
             m.log_batch([], ingredients=[{"name": "T", "lb": 1}])
         with self.assertRaises(PantryError):
-            m.log_batch([{"name": "S", "unit": "buckets", "qty": 1}], ingredients=[])
-        with self.assertRaises(PantryError):
             m.log_batch([{"name": "S", "unit": "pints", "qty": 1}], recipe_id=None)
+
+
+class YearTotals(unittest.TestCase):
+    def test_loads_add_up_by_crop_and_year(self):
+        m = make()
+        T = {"name": "Tomatoes", "crop": "tomato", "crop_name": "Tomato"}
+        m.log_batch([{"name": "Salsa", "unit": "pints", "qty": 70}], ingredients=[{**T, "lb": 200}], on="2026-09-05")
+        m.log_batch([{"name": "salsa", "unit": "pints", "qty": 70}, {"name": "Diced", "unit": "pints", "qty": 40}],
+                    ingredients=[{**T, "lb": 200}], on="2026-09-12")
+        m.log_batch([{"name": "Salsa", "unit": "pints", "qty": 90}], ingredients=[{**T, "lb": 300}], on="2025-09-10")
+        tot = {t["key"]: t for t in m.snapshot()["totals"]}["tomato"]
+        y26, y25 = tot["years"]
+        self.assertEqual((y26["year"], y26["loads"], y26["oz"]), (2026, 2, 400 * 16))
+        salsa = [p for p in y26["products"] if p["name"].lower() == "salsa"][0]
+        self.assertEqual((salsa["qty"], salsa["per_lb"]), (140, 0.35))
+        self.assertEqual((y25["year"], y25["products"][0]["per_lb"]), (2025, 0.3))
+        diced = [p for p in y26["products"] if p["name"] == "Diced"][0]
+        self.assertEqual(diced["per_lb"], 0.2)  # 40 pints from the one load (200 lb) that made it
+        # the pantry adds the two 2026 loads together as well
+        self.assertEqual({i["name"].lower(): i["count"] for i in m.snapshot()["pantry"] if i["year"] == 2026}["salsa"], 140)
+
+    def test_date_sets_the_year(self):
+        m = make()
+        m.log_batch([{"name": "Jam", "unit": "pints", "qty": 5}], ingredients=[{"name": "Berries", "lb": 10}], on="2025-07-04")
+        self.assertEqual(m.snapshot()["batches"][0]["year"], 2025)
+
+
+class MethodsAndUnits(unittest.TestCase):
+    def test_built_in_choices(self):
+        m = make()
+        s = m.snapshot()
+        self.assertEqual(s["units"][:5], ["half-pints", "pints", "quarts", "half-gallons", "gallons"])
+        self.assertEqual(s["methods"][:6], ["canning", "freeze drying", "drying", "freezing", "pickling", "fermenting"])
+
+    def test_same_food_by_different_methods_is_kept_apart(self):
+        m = make()
+        T = [{"name": "Tomatoes", "crop": "tomato", "lb": 10}]
+        m.log_batch([{"name": "Tomatoes", "method": "canning", "unit": "quarts", "qty": 4}], ingredients=T)
+        m.log_batch([{"name": "Tomatoes", "method": "freezing", "unit": "quarts", "qty": 6}], ingredients=T)
+        m.log_batch([{"name": "Tomatoes", "method": "freeze drying", "unit": "gallons", "qty": 1}], ingredients=T)
+        got = {(i["method"], i["unit"]): i["count"] for i in m.snapshot()["pantry"]}
+        self.assertEqual(got, {("canning", "quarts"): 4, ("freezing", "quarts"): 6, ("freeze drying", "gallons"): 1})
+        m.use_item("Tomatoes", "quarts", 2026, 1, method="freezing")
+        self.assertEqual({(i["method"]): i["count"] for i in m.snapshot()["pantry"] if i["unit"] == "quarts"},
+                         {"canning": 4, "freezing": 5})
+
+    def test_typed_in_method_and_measurement_are_remembered(self):
+        m = make()
+        m.log_batch([{"name": "Jerky", "method": "Smoking", "unit": "Bags", "qty": 8}], ingredients=[{"name": "Beef", "lb": 5}])
+        s = m.snapshot()
+        self.assertIn("smoking", s["methods"])
+        self.assertIn("bags", s["units"])
+        self.assertEqual(s["pantry"][0]["method"], "smoking")
+        self.assertEqual(s["method_labels"]["smoking"], "smoking")
+        # still offered after the batch is deleted
+        m.delete_batch(s["batches"][0]["id"])
+        self.assertIn("smoking", m.snapshot()["methods"])
+
+    def test_default_method_is_canning(self):
+        m = make()
+        m.log_batch([{"name": "Salsa", "unit": "pints", "qty": 3}], ingredients=[{"name": "T", "lb": 1}])
+        self.assertEqual(m.snapshot()["pantry"][0]["method"], "canning")
+
+    def test_older_data_without_methods_is_upgraded(self):
+        old = {"recipes": {}, "batches": {"b": {"id": "b", "date": "2026-09-01", "year": 2026, "recipe_id": None,
+               "recipe_name": None, "multiplier": 1, "ingredients": [{"name": "T", "crop": None, "oz": 160}],
+               "products": [{"name": "Salsa", "unit": "pints", "qty": 10}], "notes": ""}},
+               "uses": {"u": {"id": "u", "key": "salsa|pints|2026", "qty": 2, "kind": "eaten", "date": "2026-10-01"}}}
+        m = PantryModel(old, lambda: date(2026, 11, 1))
+        self.assertEqual(m.snapshot()["pantry"][0]["count"], 8)
 
 
 class Pantry(unittest.TestCase):

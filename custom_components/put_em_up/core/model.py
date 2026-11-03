@@ -10,7 +10,11 @@ import uuid
 from datetime import date
 from typing import Callable
 
-UNITS = ["half-pints", "pints", "quarts", "half-gallons", "gallons", "bags", "jars", "pounds"]
+UNITS = ["half-pints", "pints", "quarts", "half-gallons", "gallons"]
+METHODS = ["canning", "freeze drying", "drying", "freezing", "pickling", "fermenting"]
+METHOD_LABEL = {"canning": "canned", "freeze drying": "freeze-dried", "drying": "dried", "freezing": "frozen",
+                "pickling": "pickled", "fermenting": "fermented"}
+DEFAULT_METHOD = "canning"
 USE_KINDS = ["eaten", "gave away", "spoiled", "found"]  # "found" adds one back
 OZ_PER_LB = 16.0
 
@@ -59,8 +63,12 @@ def _qty(q, what="Amount") -> float:
     return round(v, 2)
 
 
-def item_key(name: str, unit: str, year: int) -> str:
-    return f"{slug(name)}|{unit}|{year}"
+def item_key(name: str, method: str, unit: str, year: int) -> str:
+    return f"{slug(name)}|{slug(method)}|{slug(unit)}|{year}"
+
+
+def method_label(method: str) -> str:
+    return METHOD_LABEL.get(method, method)
 
 
 class PantryModel:
@@ -68,9 +76,38 @@ class PantryModel:
         self.data = data or {}
         for k in ("recipes", "batches", "uses"):
             self.data.setdefault(k, {})
+        self.data.setdefault("options", {"methods": [], "units": []})
+        self._migrate()
         self.today = today
         self._changed, self._structure = on_change, on_structure
         self.garden: Callable[[], dict] = lambda: {}  # crop key -> {"name", "years": {"2026": lbs}}
+
+    def _migrate(self) -> None:
+        """Older data had no preservation method: those products were canned, and pantry uses keyed without one."""
+        for b in self.data["batches"].values():
+            for p in b["products"]:
+                p.setdefault("method", DEFAULT_METHOD)
+        for r in self.data["recipes"].values():
+            for p in r.get("makes", []):
+                p.setdefault("method", DEFAULT_METHOD)
+        for u in self.data["uses"].values():
+            parts = u["key"].split("|")
+            if len(parts) == 3:
+                u["key"] = "|".join([parts[0], slug(DEFAULT_METHOD), parts[1], parts[2]])
+
+    def methods(self) -> list[str]:
+        return METHODS + [m for m in self.data["options"]["methods"] if m not in METHODS]
+
+    def units(self) -> list[str]:
+        used = {p["unit"] for b in self.data["batches"].values() for p in b["products"]}
+        return UNITS + [u for u in dict.fromkeys(self.data["options"]["units"] + sorted(used)) if u not in UNITS]
+
+    def _remember(self, kind: str, value: str) -> None:
+        """A method or measurement you type in is added to the lists, so it shows up next time."""
+        builtin = METHODS if kind == "methods" else UNITS
+        lst = self.data["options"][kind]
+        if value not in builtin and value not in lst:
+            lst.append(value)
 
     # ---- helpers --------------------------------------------------------------------
     def _id(self) -> str:
@@ -90,10 +127,12 @@ class PantryModel:
     def _products(self, rows) -> list[dict]:
         out = []
         for r in rows or []:
-            unit = r.get("unit", "pints")
-            if unit not in UNITS:
-                raise PantryError(f"Unit must be one of: {', '.join(UNITS)}")
-            out.append({"name": _clean(r.get("name"), "Product name"), "unit": unit, "qty": _qty(r.get("qty"), "Number made")})
+            unit = _clean(r.get("unit") or "pints", "Measurement").lower()
+            method = _clean(r.get("method") or DEFAULT_METHOD, "Preservation method").lower()
+            out.append({"name": _clean(r.get("name"), "Product name"), "method": method, "unit": unit,
+                        "qty": _qty(r.get("qty"), "Number made")})
+            self._remember("units", unit)
+            self._remember("methods", method)
         if not out:
             raise PantryError("Add at least one product")
         return out
@@ -144,10 +183,10 @@ class PantryModel:
         self._structure()
 
     # ---- pantry use ------------------------------------------------------------------
-    def use_item(self, name, unit, year, qty=1, kind="eaten", on=None) -> str:
+    def use_item(self, name, unit, year, qty=1, kind="eaten", on=None, method=DEFAULT_METHOD) -> str:
         if kind not in USE_KINDS:
             raise PantryError(f"Kind must be one of: {', '.join(USE_KINDS)}")
-        key = item_key(name, unit, int(year))
+        key = item_key(name, method, unit, int(year))
         if key not in self._stock():
             raise PantryError("No such pantry item")
         n = _qty(qty)
@@ -168,8 +207,9 @@ class PantryModel:
         items: dict[str, dict] = {}
         for b in self.data["batches"].values():
             for p in b["products"]:
-                k = item_key(p["name"], p["unit"], b["year"])
-                it = items.setdefault(k, {"key": k, "name": p["name"], "unit": p["unit"], "year": b["year"], "made": 0.0, "out": 0.0})
+                k = item_key(p["name"], p["method"], p["unit"], b["year"])
+                it = items.setdefault(k, {"key": k, "name": p["name"], "method": p["method"], "unit": p["unit"],
+                                          "year": b["year"], "made": 0.0, "out": 0.0})
                 it["made"] += p["qty"]
         for u in self.data["uses"].values():
             it = items.get(u["key"])
@@ -205,6 +245,37 @@ class PantryModel:
             crops[key] = {"key": key, "name": names[key], "years": rows}
         return crops
 
+    def totals(self) -> list[dict]:
+        """Per crop, per year: loads, pounds in, and everything made, added up across all loads."""
+        crops: dict[str, dict] = {}
+        for b in self.data["batches"].values():
+            ing = b["ingredients"][0] if b["ingredients"] else None
+            name = (ing["name"] if ing else None) or "Unnamed"
+            key = (ing.get("crop") if ing else None) or slug(name)
+            c = crops.setdefault(key, {"key": key, "name": name, "years": {}})
+            y = c["years"].setdefault(str(b["year"]), {"year": b["year"], "loads": 0, "oz": 0.0, "made": {}})
+            y["loads"] += 1
+            load_oz = sum(i["oz"] for i in b["ingredients"])
+            y["oz"] += load_oz
+            seen = set()
+            for p in b["products"]:
+                k = (p["name"].strip().lower(), p["method"], p["unit"])
+                m = y["made"].setdefault(k, {"name": p["name"], "method": p["method"], "unit": p["unit"], "qty": 0.0, "oz": 0.0})
+                m["qty"] = round(m["qty"] + p["qty"], 2)
+                if k not in seen:  # jars per pound only counts the loads that actually made the product
+                    m["oz"] += load_oz
+                    seen.add(k)
+        out = []
+        for c in sorted(crops.values(), key=lambda c: c["name"].lower()):
+            years = []
+            for y in sorted(c["years"].values(), key=lambda y: -y["year"]):
+                prods = [{"name": m["name"], "method": m["method"], "unit": m["unit"], "qty": m["qty"],
+                          "per_lb": round(m["qty"] / (m["oz"] / OZ_PER_LB), 3) if m["oz"] else None}
+                         for m in sorted(y["made"].values(), key=lambda m: (m["name"].lower(), m["method"], m["unit"]))]
+                years.append({"year": y["year"], "loads": y["loads"], "oz": round(y["oz"], 2), "products": prods})
+            out.append({"key": c["key"], "name": c["name"], "years": years})
+        return out
+
     def snapshot(self) -> dict:
         today = self.today()
         year = str(today.year)
@@ -220,10 +291,11 @@ class PantryModel:
             prods = [{**p, "per_lb": round(p["qty"] / (total_oz / 16), 3) if total_oz else None} for p in b["products"]]
             batches.append({**b, "products": prods, "total_oz": round(total_oz, 2)})
         return {
-            "today": today.isoformat(), "year": int(year), "units": UNITS, "use_kinds": USE_KINDS,
+            "today": today.isoformat(), "year": int(year), "units": self.units(), "methods": self.methods(), "method_labels": {m: method_label(m) for m in self.methods()}, "use_kinds": USE_KINDS,
             "pantry": stock,
             "recipes": sorted(self.data["recipes"].values(), key=lambda r: r["name"].lower()),
             "batches": batches,
+            "totals": self.totals(),
             "uses": sorted(self.data["uses"].values(), key=lambda u: u["date"], reverse=True),
             "crops": sorted(crops.values(), key=lambda c: c["name"].lower()),
             "garden_crops": sorted(({"key": k, "name": g.get("name", k)} for k, g in (self.garden() or {}).items()), key=lambda c: c["name"].lower()),
