@@ -2,6 +2,10 @@
 
 After updating in HACS, restart Home Assistant and refresh your dashboard (close and reopen the app on a phone or tablet) so the new card loads.
 
+## 0.2.0
+
+Simplified to a plain log. Recipes, ingredient weights, garden use and shortfall are gone: garden weight and recipe weight can't be matched reliably once you trim, peel and seed. A batch is now a crop, the pounds in, and what you made. The form still shows what Garden Tracker logged for that crop as a reference.
+
 ## 0.1.3
 
 The dashboard resource address stays plain (no ?v= number). A changing address stopped the card from loading in the Home Assistant app.

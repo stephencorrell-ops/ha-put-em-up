@@ -29,8 +29,6 @@ def call(service, data):
     try:
         if service == "log_batch":
             model.log_batch(**{k: v for k, v in data.items()})
-        elif service == "save_recipe":
-            model.save_recipe(data["name"], data["ingredients"], data["makes"], data.get("recipe_id"))
         elif service == "use_item":
             model.use_item(**data)
         elif service == "delete_batch":
@@ -76,54 +74,40 @@ with sync_playwright() as p:
     page.evaluate("s=>window.push(s)", model.snapshot())
     ok("Nothing in the pantry yet" in txt(), "empty pantry message")
 
-    # recipe
-    tab("recipes")
-    sh("", "r.querySelector('[data-new-recipe]').click()")
     def fill(path, value):
         sh("", f"const e=r.querySelector('[data-f=\"{path}\"]');e.value={json.dumps(str(value))};e.dispatchEvent(new Event('change'))")
-    fill("name", "Roasted salsa")
-    fill("ings.0.name", "Tomatoes"); fill("ings.0.crop", "tomato"); fill("ings.0.lb", 10)
-    sh("", "r.querySelector('[data-radd=ings]').click()")
-    fill("ings.1.name", "Onions"); fill("ings.1.crop", "onion"); fill("ings.1.lb", 2); fill("ings.1.oz", 8)
-    sh("", "r.querySelector('[data-radd=ings]').click()")
-    fill("ings.2.name", "Vinegar"); fill("ings.2.oz", 6)
-    fill("makes.0.name", "Salsa"); fill("makes.0.qty", 7)
-    sh("", "r.querySelector('[data-save-recipe]').click()")
-    page.wait_for_timeout(200)
-    ok("Roasted salsa" in txt() and "2 lb 8 oz" in txt(), "recipe saved and shown in lb/oz")
-
-    # triple batch
+    # log a simple batch: crop, pounds in, products
     tab("make")
-    sh("", "const e=r.querySelector('[data-f=recipe_id]');e.value=e.options[1].value;e.dispatchEvent(new Event('change'))")
-    sh("", "r.querySelector('[data-mult=\"3\"]').click()")
-    ok("expected about 21 pints" in txt(), "triple batch expects 21 pints")
-    v = sh("", "return r.querySelector('[data-f=\"ings.0.lb\"]').value")
-    ok(v == "30", f"tomatoes scaled to 30 lb (got {v})")
-    fill("prods.0.qty", 20)
+    ok("Garden Tracker logged" not in txt(), "no garden hint before a crop is picked")
+    fill("crop", "tomato"); fill("lb", 400)
+    ok("Garden Tracker logged 412 lb 8 oz of Tomato in 2026" in txt(), "shows what Garden Tracker logged for that crop")
+    fill("prods.0.name", "Salsa"); fill("prods.0.qty", 140)
+    sh("", "r.querySelector('[data-add=prods]').click()")
+    fill("prods.1.name", "Diced tomatoes"); fill("prods.1.qty", 80)
     if SHOTS:
         page.screenshot(path=str(SHOTS / "make.png"), full_page=True)
     sh("", "r.querySelector('[data-save-batch]').click()")
     page.wait_for_timeout(200)
-    ok("20" in txt() and "Salsa" in txt(), "pantry shows 20 pints of salsa")
+    t = txt()
+    ok("140" in t and "Salsa" in t and "Diced tomatoes" in t, "pantry shows both products")
     page.evaluate("document.getElementById('c').shadowRoot.querySelector('[data-use]').click()")
     page.wait_for_timeout(200)
-    ok(model.snapshot()["pantry"][0]["count"] == 19, "eaten button takes one off")
-
-    # shortfall
+    counts = {i["name"]: i["count"] for i in model.snapshot()["pantry"]}
+    ok(counts["Diced tomatoes"] == 79, f"eaten button takes one off (got {counts})")
+    if SHOTS:
+        page.screenshot(path=str(SHOTS / "pantry.png"), full_page=True)
+    tab("history")
+    t = txt()
+    ok("Tomato 2026" in t and "400 lb in" in t and "0.35 per lb" in t, "batch history shows pounds in and yield per pound")
+    if SHOTS:
+        page.screenshot(path=str(SHOTS / "history.png"), full_page=True)
+    # a crop that is not in the garden
     tab("make")
-    sh("", "r.querySelector('[data-add=ings]').click()")
-    fill("ings.0.name", "Bell peppers"); fill("ings.0.crop", "bell_pepper"); fill("ings.0.lb", 60)
-    ok("20 lb" in txt() and "shortfall" in txt(), "warns about 20 lb shortfall before saving")
-    fill("prods.0.name", "Pepper relish"); fill("prods.0.qty", 30)
+    fill("other", "Peaches"); fill("lb", 30); fill("prods.0.name", "Peach halves"); fill("prods.0.unit", "quarts"); fill("prods.0.qty", 12)
     sh("", "r.querySelector('[data-save-batch]').click()")
     page.wait_for_timeout(200)
-    tab("garden")
-    t = txt()
-    ok("20 lb short" in t and "Total shortfall 2026" in t, "garden use shows 20 lb short")
-    ok("Tomato" in t and "382 lb 8 oz left" in t.replace(" ", " "), "tomato left after 30 lb used")
-    if SHOTS:
-        page.screenshot(path=str(SHOTS / "garden.png"), full_page=True)
-        tab("pantry"); page.screenshot(path=str(SHOTS / "pantry.png"), full_page=True)
+    ok("Peach halves" in txt(), "a crop not from the garden can be logged")
+    ok("Recipes" not in txt() and "Garden use" not in txt(), "recipes and garden use tabs are gone")
     ok(not errors, f"no page errors {errors}")
     b.close()
 print("web e2e OK")

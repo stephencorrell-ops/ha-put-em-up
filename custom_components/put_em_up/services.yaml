@@ -1,12 +1,3 @@
-save_recipe:
-  fields:
-    name: {required: true, selector: {text: {}}}
-    ingredients: {required: true, selector: {object: {}}}
-    makes: {required: true, selector: {object: {}}}
-    recipe_id: {selector: {text: {}}}
-delete_recipe:
-  fields:
-    recipe_id: {required: true, selector: {text: {}}}
 log_batch:
   fields:
     products: {required: true, selector: {object: {}}}

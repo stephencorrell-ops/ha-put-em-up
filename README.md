@@ -5,14 +5,15 @@ A Home Assistant (HACS) integration for home food preservation: log what you can
 It is a **log**, not a recipe or canning-safety guide. For safe processing times and methods, use the [National Center for Home Food Preservation](https://nchfp.uga.edu/).
 
 ## What it does
-- **Recipes:** enter ingredients once, in pounds and ounces, and what one batch makes (for example 7 pints of salsa). Ingredients can be tied to a garden crop.
-- **Make a batch:** pick a recipe and a size (1×, 2×, 3×, or any number). Ingredient weights and expected jars scale up. Enter how many jars you actually got.
+- **Log a batch:** pick the crop (from your Garden Tracker plants, or type any other), the year, the pounds in, and each product you made, such as 140 pints of salsa and 80 pints of diced tomatoes.
 - **Pantry:** a count per item and year. Tap to take one off when a jar is eaten, given away, or found.
-- **Garden use:** for each crop and year, what you harvested (from Garden Tracker), what batches used, what is left, and the **shortfall** if you used more than you grew (grew 40 lb of bell peppers, used 60: 20 lb short).
-- **Sensors:** a count for each pantry item, pounds left and short for each crop this year, and a total shortfall for the year.
-- **Services:** `put_em_up.log_batch`, `use_item`, `save_recipe` and more, for automations.
+- **Batches:** every batch with its pounds in and how many jars per pound it made.
+- **Sensors:** a count for each pantry item, so you can put "Salsa: 96" on a dashboard or alert when something runs low.
+- **Services:** `put_em_up.log_batch`, `use_item` and `delete_batch`, for automations.
 
-Garden totals are read from Garden Tracker's "Harvest totals" sensors (version 0.31.15 or later), so install that too if you want garden use counted. Without it, everything else works and garden items are simply counted as used.
+It does not try to match recipe ingredients to your garden harvest. Pounds in is just what you entered, because trimming, peeling and seeding make garden weight and recipe weight differ.
+
+If Garden Tracker (0.31.15 or later) is installed, the crop list comes from its "Harvest totals" sensors and the form shows how many pounds it logged for that crop. Without it, you type the crop name.
 
 ## Install
 Add this repository to HACS as a custom repository (type: Integration), install **Put 'Em Up**, restart, then add the integration under Settings, Devices & services. Add the card to a dashboard:

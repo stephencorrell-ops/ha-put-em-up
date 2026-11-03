@@ -1,16 +1,14 @@
-"""Sensors: a count for each pantry item, plus 'left' and 'shortfall' pounds for each crop you've used."""
+"""Sensors: a count for each pantry item."""
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, SIGNAL_STRUCTURE, SIGNAL_UPDATE
-from .core.model import OZ_PER_LB, slug
 from .manager import PantryManager
 
 
@@ -62,63 +60,12 @@ class PantrySensor(_Base):
         return {"made": i.get("made"), "used": i.get("out"), "year": i.get("year")}
 
 
-class CropSensor(_Base):
-    """Pounds of one crop left, or short, this year."""
-    _attr_device_class = SensorDeviceClass.WEIGHT
-    _attr_native_unit_of_measurement = UnitOfMass.POUNDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, mgr, known, key: str, name: str, field: str, label: str) -> None:
-        super().__init__(mgr, known, f"crop_{field}_{key}", "garden_use", "Garden use", "Harvest used in batches")
-        self._key, self._field = key, field
-        self._attr_name = f"{name} {label}"
-
-    @property
-    def native_value(self):
-        for c in self._mgr.snapshot()["crops"]:
-            if c["key"] == self._key:
-                row = c["years"].get(str(self._mgr.today().year))
-                return round(row[self._field] / OZ_PER_LB, 2) if row else 0.0
-        return 0.0
-
-    @property
-    def extra_state_attributes(self):
-        for c in self._mgr.snapshot()["crops"]:
-            if c["key"] == self._key:
-                return {"by_year": {y: round(r[self._field] / OZ_PER_LB, 2) for y, r in c["years"].items()}}
-        return {}
-
-
-class ShortfallTotalSensor(_Base):
-    _attr_device_class = SensorDeviceClass.WEIGHT
-    _attr_native_unit_of_measurement = UnitOfMass.POUNDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_name = "Total shortfall this year"
-
-    def __init__(self, mgr, known) -> None:
-        super().__init__(mgr, known, "shortfall_total", "garden_use", "Garden use", "Harvest used in batches")
-
-    @property
-    def native_value(self):
-        return round(self._mgr.snapshot()["short_this_year_oz"] / OZ_PER_LB, 2)
-
-    @property
-    def extra_state_attributes(self):
-        return {"by_year": {y: round(v / OZ_PER_LB, 2) for y, v in self._mgr.snapshot()["short_by_year"].items()}}
-
-
 def _build(mgr: PantryManager, known: set) -> list:
     snap = mgr.snapshot()
     ents: list = []
-    if "shortfall_total" not in known:
-        ents.append(ShortfallTotalSensor(mgr, known))
     for item in snap["pantry"]:
         if f"pantry_{item['key']}" not in known:
             ents.append(PantrySensor(mgr, known, item))
-    for c in snap["crops"]:
-        for field, label in (("left_oz", "left this year"), ("short_oz", "shortfall this year")):
-            if f"crop_{field}_{c['key']}" not in known:
-                ents.append(CropSensor(mgr, known, c["key"], c["name"], field, label))
     return ents
 
 
