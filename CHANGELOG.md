@@ -2,6 +2,11 @@
 
 After updating in HACS, restart Home Assistant and refresh your dashboard (close and reopen the app on a phone or tablet) so the new card loads.
 
+## 0.2.1
+- Fixed: the card showed nothing after updating from 0.1.x (stored data was missing the new options, so the sensor failed to load).
+- The card now shows a clear message if it can't reach the integration.
+- Removed a blocking file read at startup.
+
 ## 0.2.0
 
 Each product now has a preservation method (canning, freeze drying, drying, freezing, pickling, fermenting) and a measurement (half-pints, pints, quarts, half-gallons, gallons). Both have an Other… choice for anything you add, and what you add is remembered. The same food kept two ways is counted separately in the pantry and the totals. Pantry sensors are named like "Peaches (frozen) 2026". Older entries are treated as canned.
