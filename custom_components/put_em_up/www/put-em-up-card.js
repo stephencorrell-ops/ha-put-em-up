@@ -37,8 +37,19 @@ class PutEmUpCard extends HTMLElement {
     this._hass = h;
     if (first) this._subscribe();
   }
+  _note(html) {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.innerHTML = `<ha-card style="padding:16px"><b>Put 'Em Up</b><p>${html}</p></ha-card>`;
+  }
   async _subscribe() {
-    this._sub = await this._hass.connection.subscribeMessage((s) => { this._s = s; this._render(); }, { type: `${DOMAIN}/subscribe` });
+    this._note("Loading…");
+    try {
+      this._sub = await this._hass.connection.subscribeMessage((s) => { this._s = s; this._render(); }, { type: `${DOMAIN}/subscribe` });
+    } catch (e) {
+      const m = (e && (e.message || e.code)) || String(e);
+      this._note(`Can't reach the Put 'Em Up integration (${m}).<br>Check Settings → Devices &amp; services that <b>Put 'Em Up</b> is added and loaded, then restart Home Assistant.`);
+      this._hass = null; // allow a retry when the dashboard refreshes
+    }
   }
   disconnectedCallback() { if (this._sub) { this._sub(); this._sub = null; } }
   async _call(service, data) {
