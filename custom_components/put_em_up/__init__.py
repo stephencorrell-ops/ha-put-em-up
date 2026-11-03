@@ -32,7 +32,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     card = Path(__file__).parent / "www" / "put-em-up-card.js"
     await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), False)])
     # The address changes whenever the file does, so browsers and the app fetch the new copy.
-    card_url = f"{CARD_URL}?v={hashlib.sha256(card.read_bytes()).hexdigest()[:10]}"
+    digest = await hass.async_add_executor_job(lambda: hashlib.sha256(card.read_bytes()).hexdigest()[:10])
+    card_url = f"{CARD_URL}?v={digest}"
     add_extra_js_url(hass, card_url)
 
     async def _add_resource(_hass=None) -> None:
