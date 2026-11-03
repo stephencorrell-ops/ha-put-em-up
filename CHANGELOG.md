@@ -4,6 +4,8 @@ After updating in HACS, restart Home Assistant and refresh your dashboard (close
 
 ## 0.2.0
 
+Each product now has a preservation method (canning, freeze drying, drying, freezing, pickling, fermenting) and a measurement (half-pints, pints, quarts, half-gallons, gallons). Both have an Other… choice for anything you add, and what you add is remembered. The same food kept two ways is counted separately in the pantry and the totals. Pantry sensors are named like "Peaches (frozen) 2026". Older entries are treated as canned.
+
 Simplified to a plain log. Recipes, ingredient weights, garden use and shortfall are gone: garden weight and recipe weight can't be matched reliably once you trim, peel and seed. A load is now a crop, a date, the pounds in, and what you made. Loads logged on different days add together in the pantry and in a new Yearly totals tab (loads, pounds in, what was made, and jars per pound for each crop and year). The form still shows what Garden Tracker logged for that crop as a reference.
 
 ## 0.1.3

@@ -64,23 +64,31 @@ class PutEmUpCard extends HTMLElement {
     let last = null, out = "";
     for (const i of s.pantry) {
       if (i.year !== last) { out += yr(i.year); last = i.year; }
-      out += `<div class="row"><div><h3>${esc(i.name)}</h3><div class="sub">${esc(i.unit)} · made ${i.made}</div></div>
+      out += `<div class="row"><div><h3>${esc(i.name)}</h3><div class="sub">${esc(s.method_labels[i.method] || i.method)} · ${esc(i.unit)} · made ${i.made}</div></div>
         <div class="line"><span class="big ${i.count <= 3 ? "low" : ""}">${i.count}</span>
-        <button class="btn sm" data-use="${esc(i.name)}|${i.unit}|${i.year}|eaten">−1 eaten</button>
-        <button class="btn sm ghost" data-use="${esc(i.name)}|${i.unit}|${i.year}|gave away">gave</button>
-        <button class="btn sm ghost" data-use="${esc(i.name)}|${i.unit}|${i.year}|found">+1</button></div></div>`;
+        <button class="btn sm" data-use="${esc(i.name)}|${i.unit}|${i.year}|eaten|${esc(i.method)}">−1 eaten</button>
+        <button class="btn sm ghost" data-use="${esc(i.name)}|${i.unit}|${i.year}|gave away|${esc(i.method)}">gave</button>
+        <button class="btn sm ghost" data-use="${esc(i.name)}|${i.unit}|${i.year}|found|${esc(i.method)}">+1</button></div></div>`;
     }
     return out;
   }
 
   // ---- log a batch ----
-  _newMake(s) { return { crop: "", other: "", date: s.today, lb: "", oz: "", prods: [{ name: "", unit: "pints", qty: "" }] }; }
+  _newMake(s) { return { crop: "", other: "", date: s.today, lb: "", oz: "", prods: [{ name: "", unit: "pints", method: "canning", qty: "" }] }; }
+  _opts(list, value, labels) {
+    return list.map((u) => `<option value="${esc(u)}" ${u === value ? "selected" : ""}>${esc((labels && labels[u]) || u)}</option>`).join("") + `<option value="__other" ${value === "__other" ? "selected" : ""}>Other…</option>`;
+  }
   _prodRows(list, key, s, label) {
-    return list.map((p, n) => `<div class="line">
+    const cap = (m) => ({ canning: "Canning", "freeze drying": "Freeze drying" }[m] || m.charAt(0).toUpperCase() + m.slice(1));
+    return list.map((p, n) => `<div class="box"><div class="line">
       <input class="n" type="number" min="0" step="any" value="${p.qty ?? ""}" data-f="${key}.${n}.qty">
-      <select data-f="${key}.${n}.unit">${s.units.map((u) => `<option ${u === p.unit ? "selected" : ""}>${u}</option>`).join("")}</select>
+      <select data-f="${key}.${n}.unit">${this._opts(s.units, p.unit)}</select>
       <input class="grow" placeholder="${label}" value="${esc(p.name)}" data-f="${key}.${n}.name">
-      <button class="btn sm ghost" data-del="${key}.${n}">✕</button></div>`).join("");
+      <button class="btn sm ghost" data-del="${key}.${n}">✕</button></div>
+      <div class="line"><span class="sub">Preserved by</span>
+      <select data-f="${key}.${n}.method">${s.methods.map((m) => `<option value="${esc(m)}" ${m === p.method ? "selected" : ""}>${esc(cap(m))}</option>`).join("")}<option value="__other" ${p.method === "__other" ? "selected" : ""}>Other…</option></select>
+      ${p.unit === "__other" ? `<input class="grow" placeholder="Measurement, e.g. bags" value="${esc(p.unit_other || "")}" data-f="${key}.${n}.unit_other">` : ""}
+      ${p.method === "__other" ? `<input class="grow" placeholder="Method, e.g. smoking" value="${esc(p.method_other || "")}" data-f="${key}.${n}.method_other">` : ""}</div></div>`).join("");
   }
   _make(s) {
     const f = (this._m = this._m || this._newMake(s));
@@ -102,14 +110,14 @@ class PutEmUpCard extends HTMLElement {
     if (!s.totals.length) return `<div class="sub">No loads logged yet. Each load you log adds to the year's totals.</div>`;
     return s.totals.map((c) => `<div style="margin:6px 0 14px"><h3>${esc(c.name)}</h3>${c.years.map((y) => `<div class="box">
       <div class="line" style="justify-content:space-between"><b>${y.year}</b><span class="sub">${y.loads} load${y.loads === 1 ? "" : "s"} · ${fmt(y.oz)} in</span></div>
-      ${y.products.map((p) => `<div class="row"><span>${esc(p.name)}</span><span><b>${p.qty}</b> ${esc(p.unit)}${p.per_lb ? ` <span class="sub">· ${p.per_lb} per lb</span>` : ""}</span></div>`).join("")}</div>`).join("")}</div>`).join("");
+      ${y.products.map((p) => `<div class="row"><span>${esc(p.name)} <span class="sub">(${esc(s.method_labels[p.method] || p.method)})</span></span><span><b>${p.qty}</b> ${esc(p.unit)}${p.per_lb ? ` <span class="sub">· ${p.per_lb} per lb</span>` : ""}</span></div>`).join("")}</div>`).join("")}</div>`).join("");
   }
 
   // ---- batch history ----
   _history(s) {
     return s.batches.length ? s.batches.map((b) => `<div class="row"><div><h3>${esc((b.ingredients[0] && b.ingredients[0].name) || "Batch")} ${b.year}</h3>
       <div class="sub">${b.date}${b.total_oz ? ` · ${fmt(b.total_oz)} in` : ""}</div>
-      <div class="sub">${b.products.map((p) => `${p.qty} ${p.unit} ${esc(p.name)}${p.per_lb ? ` (${p.per_lb} per lb)` : ""}`).join(", ")}</div></div>
+      <div class="sub">${b.products.map((p) => `${p.qty} ${esc(p.unit)} ${esc(p.name)} (${esc(s.method_labels[p.method] || p.method)})${p.per_lb ? ` (${p.per_lb} per lb)` : ""}`).join(", ")}</div></div>
       <button class="btn sm ghost" data-bdel="${b.id}">Delete</button></div>`).join("") : `<div class="sub">No loads yet.</div>`;
   }
 
@@ -118,7 +126,7 @@ class PutEmUpCard extends HTMLElement {
   _wire() {
     const R = this.shadowRoot, s = this._s;
     R.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { this._tab = b.dataset.tab; this._err = ""; this._render(); });
-    R.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => { const [name, unit, year, kind] = b.dataset.use.split("|"); this._call("use_item", { name, unit, year: Number(year), qty: 1, kind }); });
+    R.querySelectorAll("[data-use]").forEach((b) => b.onclick = () => { const [name, unit, year, kind, method] = b.dataset.use.split("|"); this._call("use_item", { name, unit, year: Number(year), qty: 1, kind, method }); });
     R.querySelectorAll("[data-bdel]").forEach((b) => b.onclick = () => { if (confirm("Delete this batch? Pantry counts and garden use go back.")) this._call("delete_batch", { batch_id: b.dataset.bdel }); });
     const form = () => this._m;
     R.querySelectorAll("[data-f]").forEach((el) => el.onchange = () => {
@@ -128,11 +136,11 @@ class PutEmUpCard extends HTMLElement {
       this._render();
     });
     R.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { const [k, n] = b.dataset.del.split("."); form()[k].splice(Number(n), 1); this._render(); });
-    R.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => { this._m.prods.push({ name: "", unit: "pints", qty: "" }); this._render(); });
+    R.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => { const last = this._m.prods[this._m.prods.length - 1] || {}; this._m.prods.push({ name: "", unit: last.unit || "pints", method: last.method || "canning", qty: "" }); this._render(); });
     const save = R.querySelector("[data-save-batch]");
     if (save) save.onclick = async () => {
       const f = this._m, gc = s.garden_crops.find((c) => c.key === f.crop), name = gc ? gc.name : (f.other || "").trim();
-      const prods = f.prods.filter((p) => p.name.trim() && num(p.qty) > 0).map((p) => ({ name: p.name.trim(), unit: p.unit, qty: num(p.qty) }));
+      const prods = f.prods.filter((p) => p.name.trim() && num(p.qty) > 0).map((p) => ({ name: p.name.trim(), unit: p.unit === "__other" ? (p.unit_other || "").trim() : p.unit, method: p.method === "__other" ? (p.method_other || "").trim() : p.method, qty: num(p.qty) }));
       const data = { products: prods, ingredients: name ? [{ name, crop: f.crop || null, crop_name: gc ? gc.name : null, lb: num(f.lb), oz: num(f.oz) }] : [], date: f.date || s.today };
       if (await this._call("log_batch", data)) { this._m = null; this._tab = "pantry"; this._render(); }
     };

@@ -9,6 +9,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, SIGNAL_STRUCTURE, SIGNAL_UPDATE
+from .core.model import method_label
 from .manager import PantryManager
 
 
@@ -39,7 +40,7 @@ class PantrySensor(_Base):
     def __init__(self, mgr, known, item: dict) -> None:
         super().__init__(mgr, known, f"pantry_{item['key']}", "pantry", "Pantry", "Home-preserved food")
         self._key = item["key"]
-        self._attr_name = f"{item['name']} {item['year']}"
+        self._attr_name = f"{item['name']} ({method_label(item['method'])}) {item['year']}"
         self._attr_native_unit_of_measurement = item["unit"]
 
     def _item(self):
@@ -57,7 +58,7 @@ class PantrySensor(_Base):
     @property
     def extra_state_attributes(self):
         i = self._item() or {}
-        return {"made": i.get("made"), "used": i.get("out"), "year": i.get("year")}
+        return {"made": i.get("made"), "used": i.get("out"), "year": i.get("year"), "method": i.get("method")}
 
 
 def _build(mgr: PantryManager, known: set) -> list:
